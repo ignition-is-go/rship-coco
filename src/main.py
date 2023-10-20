@@ -105,20 +105,25 @@ def detect():
   modelPath = os.getenv("MODEL_PATH")
 
   parentDir = Path(__file__).parent.parent.absolute()
-  modelPath = parentDir.as_posix() + '/' + modelPath
+  modelPath = parentDir.as_posix() + modelPath
 
   print("loading model")
+  print(modelPath)
 
   model = YOLO(modelPath)
   model.to('cuda')
 
   print("loading video")
+  print(videoPath)
 
   cap = cv2.VideoCapture(videoPath)
 
   if not cap.isOpened():
       print("Cannot open camera")
       exit()
+
+  showImage = os.getenv("SHOW_IMAGE")
+
   while True:
     ret, frame = cap.read()
 
@@ -139,19 +144,20 @@ def detect():
         in detections.class_id
     ]
 
-    annotated_image = bounding_box_annotator.annotate(
-        scene=frame, detections=detections)
-    annotated_image = label_annotator.annotate(
-        scene=annotated_image, detections=detections, labels=labels)
-
-    counts = Counter(labels)
-
     rectId = 'root'
+    counts = Counter(labels)
     for key, value in counts.items():
       targetId = rectId + ":" + key
       emitterId = targetId + ":count"
       client.pulseEmitter(emitterId=emitterId,data={"value": value})
-    
+
+    if not showImage.lower() == "true":
+      continue
+
+    annotated_image = bounding_box_annotator.annotate(
+        scene=frame, detections=detections)
+    annotated_image = label_annotator.annotate(
+        scene=annotated_image, detections=detections, labels=labels)
 
     cv2.imshow("yolov8", annotated_image)
 

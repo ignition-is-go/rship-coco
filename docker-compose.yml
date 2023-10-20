@@ -1,0 +1,32 @@
+version: '3'
+
+services:
+  coco:
+    image: coco-test:latest
+    environment:
+      VIDEO_PATH: 'pexels-raquel-tinoco-6477058 (1080p).mp4'
+      MODEL_PATH: 'models/yolov8x.pt'
+      RSHIP_ADDRESS: '10.147.20.13'
+      RSHIP_PORT: '5155'
+      SHOW_IMAGE: 'False'
+    volumes:
+      - /home/trevor/Downloads/pexels-raquel-tinoco-6477058 (1080p).mp4:/app/pexels-raquel-tinoco-6477058 (1080p).mp4
+      - /home/trevor/Code/rocketship/libs/coco/rship-coco/models:/models
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+# services:
+#   test:
+#     image: nvidia/cuda:12.2.2-runtime-ubuntu22.04
+#     command: nvidia-smi
+#     deploy:
+#       resources:
+#         reservations:
+#           devices:
+#             - driver: nvidia
+#               count: 1
+#               capabilities: [gpu]
