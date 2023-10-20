@@ -1,0 +1,9 @@
+opencv-python
+ultralytics
+supervision
+numpy
+argparse
+torch
+python-dotenv
+websocket-client
+rel

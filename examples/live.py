@@ -5,6 +5,7 @@ from ultralytics import YOLO
 import supervision as sv
 import numpy as np
 from supervision import ColorLookup
+import os
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -23,23 +24,40 @@ def main():
     args = parse_arguments()
     frame_width, frame_height = args.webcam_resolution
 
-    cap = cv2.VideoCapture(
-        "rtsp://localhost/live")
+    cap = cv2.VideoCapture('/home/trevor/Downloads/pexels-raquel-tinoco-6477058 (1080p).mp4')
+
+    if not cap.isOpened():
+        print("Cannot open camera")
+        exit()
+
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, frame_width)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, frame_height)
 
-    model = YOLO("FastSAM-s.pt")
+    absFilePath = os.path.abspath(__file__)
+
+    # models folder path next to this file
+
+    modelsFolderPath = os.path.dirname(absFilePath) + "/models"
+
+    print(modelsFolderPath)
+    exit()
+    model = YOLO("./models/yolov8x.pt")
+
     model.to('cuda')
+
 
     while True:
         ret, frame = cap.read()
+
+        if not ret:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, 0)  # Rewind video
+            continue
 
         results = model(frame)[0]
 
         detections = sv.Detections.from_ultralytics(results)
 
-        bounding_box_annotator = sv.MaskAnnotator(
-            color_lookup=ColorLookup.INDEX)
+        bounding_box_annotator = sv.BoxAnnotator()
         label_annotator = sv.LabelAnnotator()
 
         labels = [
