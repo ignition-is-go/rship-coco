@@ -1,7 +1,5 @@
 {
   "name": "@rship/coco",
-  "scripts": {
-    "publish": "../../../tools/scripts/docker-tag-and-publish.sh coco"
-  },
+  "scripts": {},
   "version": "3.0.0-canary.230"
 }
