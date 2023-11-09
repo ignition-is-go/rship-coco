@@ -1,5 +1,5 @@
 import cv2
-from ultralytics import YOLO
+from ultralytics import NAS
 import supervision as sv
 import numpy as np
 from supervision import ColorLookup
@@ -110,7 +110,7 @@ def detect():
   print("loading model")
   print(modelPath)
 
-  model = YOLO(modelPath)
+  model = NAS(modelPath)
   model.to('cuda')
 
   print("loading video")
@@ -149,7 +149,7 @@ def detect():
     for key, value in counts.items():
       targetId = rectId + ":" + key
       emitterId = targetId + ":count"
-      client.pulseEmitter(emitterId=emitterId,data={"value": value})
+      # client.pulseEmitter(emitterId=emitterId,data={"value": value})
 
     if not showImage.lower() == "true":
       continue
@@ -182,7 +182,7 @@ def main():
                               on_error=on_error,
                               on_close=on_close)
 
-  client.onExecConnected(on_exec_connected)
+  # client.onExecConnected(on_exec_connected)
   ws.run_forever(dispatcher=rel, reconnect=5)  # Set dispatcher to automatic reconnection, 5 second reconnect delay if connection closed unexpectedly
   rel.signal(2, rel.abort)  # Keyboard Interrupt
   rel.dispatch()

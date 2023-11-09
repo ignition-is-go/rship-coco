@@ -7,3 +7,4 @@ torch
 python-dotenv
 websocket-client
 rel
+super-gradients
