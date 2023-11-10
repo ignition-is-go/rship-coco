@@ -1,5 +1,5 @@
 import cv2
-from ultralytics import NAS
+from ultralytics import YOLO
 import supervision as sv
 import numpy as np
 from supervision import ColorLookup
@@ -13,11 +13,14 @@ from datetime import datetime, timezone
 from threading import Thread
 from collections import Counter
 
+import super_gradients
+
 from coco import labels
 
 from lib.registry import client
 from lib.exec import Instance, InstanceStatus, Machine, Target, Emitter, Status
 from lib.registry import client
+
 
 def on_message(ws, message):
     client.parseMessage(message)
@@ -89,12 +92,40 @@ def on_exec_connected():
         subTargets=[],
         lastUpdated=datetime.now(timezone.utc).isoformat(),
       )
-      e = Emitter(id=t.id+":count", name="Count Visible", targetId=rootRect.id, serviceId=client.clientId, schema={"type": "object", "properties": {"value": {"type": "number"}}})
+      countVisible = Emitter(id=t.id+":count", name="Count Visible", targetId=rootRect.id, serviceId=instance.serviceId, schema={"type": "object", "properties": {"value": {"type": "number"}}})
       targetIds.append(t.id)
-      t.emitterIds.append(e.id)
+      t.emitterIds.append(countVisible.id)
       client.saveTarget(t)
       client.setTargetStatus(t, instance, Status.Online)
-      client.saveEmitter(e)
+      client.saveEmitter(countVisible)
+
+  poses = Target(
+    id=rootRect.id + ':poses',
+    name="Poses",
+    fgColor="#61c0ff",
+    bgColor="#61c0ff",
+    emitterIds=[],
+    serviceId=instance.serviceId,
+    category="Pose",
+    rootLevel=False,
+    actionIds=[],
+    subTargets=[],
+    lastUpdated=datetime.now(timezone.utc).isoformat(),
+  )
+
+  posesEmitter = Emitter(
+     id=poses.id+":poses", 
+     name="Count Visible", 
+     targetId=poses.id, 
+     serviceId=instance.serviceId, 
+     schema={"type": "object", "properties": {"value": {"type": "number"}}}
+  )
+
+  poses.emitterIds.append(posesEmitter.id)
+  targetIds.append(poses.id)
+  client.saveTarget(poses)
+  client.saveEmitter(posesEmitter)
+  client.setTargetStatus(poses, instance, Status.Online)
 
   rootRect.subTargets = targetIds
   client.saveTarget(rootRect)
@@ -110,7 +141,8 @@ def detect():
   print("loading model")
   print(modelPath)
 
-  model = NAS(modelPath)
+  yolo_nas = super_gradients.training.models.get("yolo_nas_pose_l", pretrained_weights="coco_pose").cuda()
+  model = YOLO(modelPath)
   model.to('cuda')
 
   print("loading video")
@@ -124,14 +156,27 @@ def detect():
 
   showImage = os.getenv("SHOW_IMAGE")
 
+
   while True:
     ret, frame = cap.read()
 
     if not ret:
         cap.set(cv2.CAP_PROP_POS_FRAMES, 0)  # Rewind video
         continue
-
+    
     results = model(frame)[0]
+
+    pose_predictions  = yolo_nas.predict(frame, conf=0.5)
+
+    pose_prediction = pose_predictions[0].prediction # One prediction per image - Here we work with 1 image, so we get the first.
+
+
+    if not pose_prediction:
+        continue
+
+    pose_prediction  = pose_prediction.poses       # [Num Instances, Num Joints, 3] list of predicted joints for each detected object (x,y, confidence)
+
+    client.pulseEmitter(emitterId="root:poses:poses", data={"value": pose_prediction.tolist()})
 
     detections = sv.Detections.from_ultralytics(results)
 
@@ -149,7 +194,7 @@ def detect():
     for key, value in counts.items():
       targetId = rectId + ":" + key
       emitterId = targetId + ":count"
-      # client.pulseEmitter(emitterId=emitterId,data={"value": value})
+      client.pulseEmitter(emitterId=emitterId,data={"value": value})
 
     if not showImage.lower() == "true":
       continue
@@ -169,23 +214,29 @@ def main():
 
   print("starting detection")
 
-  detect_thread = Thread(target=detect)
-  detect_thread.start()
+  try: 
+    detect_thread = Thread(target=detect)
+    detect_thread.start()
 
-  # Rship Connection
-  rshipAddress = os.getenv("RSHIP_ADDRESS")
-  rshipPort = os.getenv("RSHIP_PORT")
-  uri = "ws://" + rshipAddress + ":" + rshipPort + '/myko'
-  ws = websocket.WebSocketApp(uri,
-                              on_open=on_open,
-                              on_message=on_message,
-                              on_error=on_error,
-                              on_close=on_close)
+    # Rship Connection
+    rshipAddress = os.getenv("RSHIP_ADDRESS")
+    rshipPort = os.getenv("RSHIP_PORT")
+    uri = "ws://" + rshipAddress + ":" + rshipPort + '/myko'
+    ws = websocket.WebSocketApp(uri,
+                                on_open=on_open,
+                                on_message=on_message,
+                                on_error=on_error,
+                                on_close=on_close)
 
-  # client.onExecConnected(on_exec_connected)
-  ws.run_forever(dispatcher=rel, reconnect=5)  # Set dispatcher to automatic reconnection, 5 second reconnect delay if connection closed unexpectedly
-  rel.signal(2, rel.abort)  # Keyboard Interrupt
-  rel.dispatch()
+    client.onExecConnected(on_exec_connected)
+    ws.run_forever(dispatcher=rel, reconnect=5)  # Set dispatcher to automatic reconnection, 5 second reconnect delay if connection closed unexpectedly
+    rel.signal(2, rel.abort)  # Keyboard Interrupt
+    rel.dispatch()
+
+  except KeyboardInterrupt:
+    print("Keyboard Interrupt")
+    exit()
+
 
 
 if __name__ == '__main__':
