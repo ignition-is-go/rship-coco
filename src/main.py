@@ -136,7 +136,7 @@ def detect():
   modelPath = os.getenv("MODEL_PATH")
 
   parentDir = Path(__file__).parent.parent.absolute()
-  modelPath = parentDir.as_posix() + modelPath
+  # modelPath = parentDir.as_posix() + modelPath
 
   print("loading model")
   print(modelPath)
@@ -170,18 +170,12 @@ def detect():
 
     pose_prediction = pose_predictions[0].prediction # One prediction per image - Here we work with 1 image, so we get the first.
 
-
-    if not pose_prediction:
-        continue
-
-    pose_prediction  = pose_prediction.poses       # [Num Instances, Num Joints, 3] list of predicted joints for each detected object (x,y, confidence)
-
-    client.pulseEmitter(emitterId="root:poses:poses", data={"value": pose_prediction.tolist()})
+    if pose_prediction is not None:
+      pose_prediction  = pose_prediction.poses    
+       # [Num Instances, Num Joints, 3] list of predicted joints for each detected object (x,y, confidence)
+      client.pulseEmitter(emitterId="root:poses:poses", data={"value": pose_prediction.tolist()})
 
     detections = sv.Detections.from_ultralytics(results)
-
-    bounding_box_annotator = sv.BoxAnnotator()
-    label_annotator = sv.LabelAnnotator()
 
     labels = [
         results.names[class_id]
@@ -198,6 +192,10 @@ def detect():
 
     if not showImage.lower() == "true":
       continue
+
+      
+    bounding_box_annotator = sv.BoxAnnotator()
+    label_annotator = sv.LabelAnnotator()
 
     annotated_image = bounding_box_annotator.annotate(
         scene=frame, detections=detections)
